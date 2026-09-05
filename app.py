@@ -124,14 +124,10 @@ def carregar_planilhas():
 try:
     planilhas = carregar_planilhas()
 except Exception as e:
-    st.error(
-        "Não consegui me conectar à planilha do Google Sheets. "
-        "Verifique se os 'secrets' (sheet_id e gcp_service_account) estão configurados "
-        "e se a planilha foi compartilhada com o e-mail da conta de serviço.\n\n"
-        f"Detalhe técnico: {e}"
-    )
+    st.error("Não consegui me conectar à planilha do Google Sheets.")
+    st.exception(e)  # mostra o traceback completo na tela
     st.stop()
-
+    
 # --- Tratamento Inicial dos Dados ---
 gastos = planilhas["gastos"].rename(columns={
     "data_compra": "Data compra", "data_pagamento": "Data pagamento",

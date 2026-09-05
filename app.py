@@ -316,7 +316,7 @@ total_gastos = total_gastos_variaveis + total_fixos + total_cartao
 total_entradas = entradas_m["Valor"].sum()
 total_investido = investimentos_m["Investido"].sum() if not investimentos_m.empty else 0.0
 
-saldo = total_entradas - total_gastos
+saldo = total_entradas - total_gastos - total_investido 
 
 gastos_excedeu = total_gastos > LIMITE_MENSAL
 

@@ -70,19 +70,33 @@ COLUNAS_NUMERICAS = {
     "config": ["limite_categoria"],
 }
 
-# Colunas booleanas (na planilha, digite TRUE/FALSE ou VERDADEIRO/FALSO nessas células)
+# Colunas booleanas (na planilha, digite TRUE/FALSE ou VERDADEIRO/FALSO nessas células,
+# ou use uma caixa de seleção — checkbox — do próprio Google Sheets)
 COLUNAS_BOOLEANAS = {
     "fixos": ["pago"],
     "cartao": ["pago"],
 }
 
+# Colunas de data (devem estar formatadas como Data no Google Sheets)
+COLUNAS_DATA = {
+    "gastos": ["data_compra", "data_pagamento"],
+    "fixos": ["vencimento"],
+    "cartao": ["vencimento"],
+    "entradas": ["data"],
+}
+
 
 def _para_numero(serie):
-    # Aceita tanto "1234.56" quanto "1234,56" vindos da planilha
-    return pd.to_numeric(
-        serie.astype(str).str.replace(".", "", regex=False).str.replace(",", ".", regex=False),
-        errors="coerce"
-    ) if serie.astype(str).str.contains(",").any() else pd.to_numeric(serie, errors="coerce")
+    # Com value_render_option="UNFORMATTED_VALUE", o Sheets já entrega o número
+    # bruto (float), sem formatação regional — só garantimos o tipo numérico.
+    return pd.to_numeric(serie, errors="coerce")
+
+
+def _serial_para_data(serie):
+    # Datas do Google Sheets (modo bruto) vêm como número de dias desde 30/12/1899,
+    # o mesmo padrão usado pelo Excel. Convertemos esse número para data de verdade.
+    numeros = pd.to_numeric(serie, errors="coerce")
+    return pd.to_datetime(numeros, unit="D", origin="1899-12-30", errors="coerce")
 
 
 def _para_booleano(serie):
@@ -106,12 +120,16 @@ def carregar_planilhas():
         except gspread.exceptions.WorksheetNotFound:
             st.error(f"Não encontrei uma aba chamada '{aba}' na planilha do Google Sheets.")
             st.stop()
-        registros = worksheet.get_all_records()
+        registros = worksheet.get_all_records(value_render_option="UNFORMATTED_VALUE")
         df = pd.DataFrame(registros)
 
         for coluna in COLUNAS_NUMERICAS.get(aba, []):
             if coluna in df.columns:
                 df[coluna] = _para_numero(df[coluna])
+
+        for coluna in COLUNAS_DATA.get(aba, []):
+            if coluna in df.columns:
+                df[coluna] = _serial_para_data(df[coluna])
 
         for coluna in COLUNAS_BOOLEANAS.get(aba, []):
             if coluna in df.columns:
@@ -124,10 +142,14 @@ def carregar_planilhas():
 try:
     planilhas = carregar_planilhas()
 except Exception as e:
-    st.error("Não consegui me conectar à planilha do Google Sheets.")
-    st.exception(e)  # mostra o traceback completo na tela
+    st.error(
+        "Não consegui me conectar à planilha do Google Sheets. "
+        "Verifique se os 'secrets' (sheet_id e gcp_service_account) estão configurados "
+        "e se a planilha foi compartilhada com o e-mail da conta de serviço.\n\n"
+        f"Detalhe técnico: {e}"
+    )
     st.stop()
-    
+
 # --- Tratamento Inicial dos Dados ---
 gastos = planilhas["gastos"].rename(columns={
     "data_compra": "Data compra", "data_pagamento": "Data pagamento",
